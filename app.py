@@ -10,10 +10,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
 import google.generativeai as genai
-import concurrent.futures
-import threading
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 # Tắt cảnh báo SSL không an toàn
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -296,210 +292,8 @@ def health_check():
     """Health check endpoint for Render"""
     return {'status': 'healthy', 'service': 'news-extractor'}, 200
 
-# Global session với connection pooling
-session = requests.Session()
-retry_strategy = Retry(
-    total=2,
-    backoff_factor=0.5,
-    status_forcelist=[429, 500, 502, 503, 504],
-)
-adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=20, pool_maxsize=100)
-session.mount("http://", adapter)
-session.mount("https://", adapter)
-
-def extract_title_and_content_fast(url):
-    """
-    Phiên bản tối ưu với timeout ngắn hơn cho batch processing
-    """
-    print(f"\n🚀 Fast Processing URL: {url}")
-    
-    # --- PHƯƠNG PHÁP 1: Dùng Session với connection pooling (Nhanh nhất) ---
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        response = session.get(url, headers=headers, timeout=8, verify=False)  # Giảm timeout từ 15s → 8s
-        response.raise_for_status()
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        title, content = None, None
-        
-        # Xử lý đặc biệt cho các trang cụ thể (giữ nguyên logic)
-        if 'vietnamnet.vn' in url:
-            print("🔍 Applying specific logic for vietnamnet.vn")
-            if sapo := soup.select_one('h2.content-detail-sapo, h2[class*="content-detail-sapo"], [class*="sapo"]'):
-                sapo_text = sapo.get_text(strip=True)
-                if len(sapo_text) > 30 and not sapo_text.endswith('...'):
-                    content = sapo_text
-                    print(f"✅ VietnamNet sapo extracted: {len(sapo_text.split())} words")
-        
-        elif 'tienphong.vn' in url:
-            print("🔍 Applying specific logic for tienphong.vn")
-            if sapo := soup.select_one('div.sapo p, .article-sapo, .content-sapo, div[class*="sapo"], .lead'):
-                sapo_text = sapo.get_text(strip=True)
-                if len(sapo_text) > 50:
-                    content = sapo_text
-                    print(f"✅ TienPhong sapo extracted: {len(sapo_text.split())} words")
-                    
-        elif 'baotintuc.vn' in url:
-            print("🔍 Applying specific logic for baotintuc.vn")
-            if sapo := soup.select_one('h2.sapo, [class="sapo"]'):
-                sapo_text = sapo.get_text(strip=True)
-                if len(sapo_text) > 50:
-                    content = sapo_text
-                    print(f"✅ BaoTinTuc sapo extracted: {len(sapo_text.split())} words")
-
-        # Logic chung
-        title_selectors = ['h1.title', 'h1.detail-title', 'h1', '.entry-title', 'title']
-        for selector in title_selectors:
-            if title_element := soup.select_one(selector):
-                if len(title_element.get_text(strip=True)) > 10:
-                    title = title_element.get_text(strip=True)
-                    break
-        
-        if not content:
-            if meta_desc := soup.find('meta', attrs={'name': 'description'}):
-                if len(meta_desc.get('content', '')) > 50:
-                    content = meta_desc.get('content', '').strip()
-
-        if not content:
-            for p in soup.find_all('p'):
-                text = p.get_text(strip=True)
-                if len(text) > 80 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
-                    content = text
-                    break
-        
-        # Logic kết hợp 80 từ (giữ nguyên)
-        if content and len(content.split()) < 80:
-            print(f"Fast: Content has {len(content.split())} words, adding more paragraphs...")
-            all_paragraphs = soup.find_all('p')
-            for p in all_paragraphs:
-                text = p.get_text(strip=True)
-                if (len(text) > 30 and 
-                    'login' not in text.lower() and 
-                    'đăng nhập' not in text.lower() and
-                    'nguồn:' not in text.lower() and
-                    'ảnh:' not in text.lower() and
-                    'photo:' not in text.lower() and
-                    'image:' not in text.lower() and
-                    text not in content):
-                    content += " " + text
-                    if len(content.split()) >= 80:
-                        break
-        
-        if title and content:
-            print("✅ Fast extraction successful!")
-            return build_success_response(title, content)
-            
-    except requests.RequestException as e:
-        print(f"⚠️ Fast requests failed: {e}. Trying Selenium.")
-    
-    # --- PHƯƠNG PHÁP 2: Dùng Selenium (Fallback với timeout ngắn) ---
-    selenium_result = extract_with_selenium_fast(url)
-    if selenium_result['success']:
-        return build_success_response(selenium_result['title'], selenium_result['content'])
-    
-    # --- PHƯƠNG PHÁP 3: Skip Gemini trong batch processing để tăng tốc ---
-    print("❌ Fast extraction failed, skipping to next URL")
-    return build_error_response("Không thể trích xuất nội dung từ URL này.")
-
-def extract_with_selenium_fast(url):
-    """Selenium với timeout ngắn cho batch processing"""
-    print(f"🚀 Fast Selenium for: {url}")
-    
-    chrome_options = Options()
-    chrome_options.add_argument("--headless=new")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1280,720")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-images")
-    chrome_options.add_argument("--disable-javascript")
-    chrome_options.add_argument("--disable-background-networking")
-    chrome_options.add_argument("--disable-sync")
-    chrome_options.add_argument("--disable-translate")
-    chrome_options.add_argument("--hide-scrollbars")
-    chrome_options.add_argument("--metrics-recording-only")
-    chrome_options.add_argument("--mute-audio")
-    chrome_options.add_argument("--no-first-run")
-    chrome_options.add_argument("--safebrowsing-disable-auto-update")
-    chrome_options.add_argument("--ignore-ssl-errors")
-    chrome_options.add_argument("--ignore-certificate-errors")
-    
-    driver = None
-    try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-        driver.implicitly_wait(3)  # Giảm thêm
-        driver.set_page_load_timeout(6)  # Giảm timeout
-        
-        driver.get(url)
-        time.sleep(0.5)  # Giảm thêm
-        
-        html_content = driver.page_source
-        if not html_content or len(html_content) < 500:
-            raise ValueError("Page source too short")
-            
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Logic trích xuất đơn giản hóa
-        title, content = None, None
-        
-        # Title extraction
-        title_selectors = ['h1.title', 'h1.detail-title', 'h1', '.entry-title', 'title']
-        for selector in title_selectors:
-            try:
-                title_element = soup.select_one(selector)
-                if title_element:
-                    title_text = title_element.get_text(strip=True)
-                    if len(title_text) > 10:
-                        title = title_text
-                        break
-            except Exception:
-                continue
-
-        # Content extraction - simplified
-        try:
-            # Try meta description first
-            meta_desc = soup.find('meta', attrs={'name': 'description'})
-            if meta_desc and meta_desc.get('content'):
-                desc_content = meta_desc.get('content', '').strip()
-                if len(desc_content) > 50:
-                    content = desc_content
-
-            # If no meta desc, try paragraphs
-            if not content:
-                paragraphs = soup.find_all('p')
-                for p in paragraphs:
-                    try:
-                        text = p.get_text(strip=True)
-                        if len(text) > 80 and 'login' not in text.lower():
-                            content = text
-                            break
-                    except Exception:
-                        continue
-        except Exception as e:
-            print(f"⚠️ Content extraction error: {e}")
-
-        if title and content:
-            print(f"✅ Fast Selenium success: {len(title)} chars title, {len(content)} chars content")
-            return {"title": title, "content": content, "success": True}
-        
-        print(f"⚠️ Fast Selenium partial result: title={bool(title)}, content={bool(content)}")
-        return {"title": title or "Không tìm thấy tiêu đề", "content": content or "Không tìm thấy nội dung", "success": False}
-        
-    except Exception as e:
-        print(f"❌ Fast Selenium Error: {str(e)}")
-        return {"title": "Lỗi Selenium", "content": f"Selenium error: {str(e)}", "success": False}
-    finally:
-        if driver:
-            try:
-                driver.quit()
-            except Exception:
-                pass  # Ignore quit errors
-
 @app.route('/extract', methods=['POST'])
 def extract():
-    """Single URL extraction với full accuracy (giữ nguyên logic gốc)"""
     url = (request.get_json() or {}).get('url') or request.form.get('url', '')
     if not url:
         return jsonify(build_error_response('Vui lòng nhập URL hợp lệ.'))
@@ -507,8 +301,9 @@ def extract():
     if not url.startswith(('http://', 'https://')):
         url = 'https://' + url
         
-    result = extract_title_and_content(url)  # Dùng function gốc cho accuracy
+    result = extract_title_and_content(url)
     return jsonify(result)
+
 
 @app.route('/batch_extract', methods=['POST'])
 def batch_extract():
@@ -517,23 +312,12 @@ def batch_extract():
         return jsonify({'results': [], 'error': 'Vui lòng nhập ít nhất một URL.'})
     
     urls = [url.strip() for url in urls_text.splitlines() if url.strip()]
-    full_urls = [url if url.startswith(('http://', 'https://')) else 'https://' + url for url in urls]
-    
-    # 🚀 PARALLEL PROCESSING với ThreadPoolExecutor
     results = []
-    
-    def process_url(url):
-        print(f"🔄 Processing: {url}")
-        start_time = time.time()
-        result = extract_title_and_content_fast(url)
-        result['url'] = url
-        processing_time = time.time() - start_time
-        print(f"✅ Completed {url} in {processing_time:.2f}s")
-        return result
-    
-    # Xử lý song song với max 3 threads (tránh overload Render server)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        results = list(executor.map(process_url, full_urls))
+    for url in urls:
+        full_url = url if url.startswith(('http://', 'https://')) else 'https://' + url
+        result = extract_title_and_content(full_url)
+        result['url'] = full_url
+        results.append(result)
         
     return jsonify({'results': results})
 
