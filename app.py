@@ -1,5 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import requests
+import aiohttp
+import asyncio
 from bs4 import BeautifulSoup
 import urllib3
 import ssl
@@ -29,6 +31,110 @@ try:
 except Exception as e:
     model = None
     print(f"❌ Error configuring Gemini API: {e}")
+
+
+def parse_html_content(html_content, url):
+    """
+    Tách logic trích xuất tiêu đề và nội dung từ HTML.
+    """
+    try:
+        soup = BeautifulSoup(html_content, 'lxml')
+        
+        # --- Trích xuất tiêu đề ---
+        title = None
+        
+        # Xử lý riêng cho tienphong.vn
+        if 'tienphong.vn' in url:
+            title_element = soup.find('h1', class_='detail-title')
+            if title_element:
+                title = title_element.get_text(strip=True)
+        
+        # Fallback cho các trang khác
+        if not title:
+            title_selectors = [
+                'h1.detail-title',
+                'h1.article-title',
+                'h1.title',
+                'h1.post-title',
+                'h1[class*="title"]',
+                'h1'
+            ]
+            
+            for selector in title_selectors:
+                title_element = soup.select_one(selector)
+                if title_element:
+                    title = title_element.get_text(strip=True)
+                    break
+        
+        # --- Trích xuất nội dung ---
+        content = ""
+        
+        # Xử lý riêng cho vietnamnet.vn
+        if 'vietnamnet.vn' in url:
+            sapo_element = soup.find('h2', class_='content-detail-sapo')
+            if sapo_element:
+                sapo_text = sapo_element.get_text(strip=True)
+                if not sapo_text.endswith('...'):
+                    content = sapo_text
+        
+        # Xử lý riêng cho baotintuc.vn
+        elif 'baotintuc.vn' in url:
+            sapo_element = soup.find('h2', class_='sapo')
+            if sapo_element:
+                content = sapo_element.get_text(strip=True)
+        
+        # Xử lý riêng cho tienphong.vn
+        elif 'tienphong.vn' in url:
+            sapo_element = soup.find('h2', class_='sapo')
+            if sapo_element:
+                content = sapo_element.get_text(strip=True)
+        
+        # Nếu chưa có content hoặc chưa đủ 80 từ, tìm thêm
+        if not content or len(content.split()) < 80:
+            content_selectors = [
+                'div.detail-content p',
+                'div.article-content p',
+                'div.content p',
+                'div.post-content p',
+                'div[class*="content"] p',
+                'p'
+            ]
+            
+            paragraphs = []
+            for selector in content_selectors:
+                elements = soup.select(selector)
+                if elements:
+                    for p in elements:
+                        text = p.get_text(strip=True)
+                        if text and len(text) > 20:
+                            paragraphs.append(text)
+                    break
+            
+            # Kết hợp với content hiện tại nếu có
+            if content:
+                all_content = [content] + paragraphs
+            else:
+                all_content = paragraphs
+            
+            # Kết hợp cho đến khi đạt 80 từ
+            combined_content = ""
+            for paragraph in all_content:
+                if len((combined_content + " " + paragraph).split()) <= 200:  # Giới hạn tối đa
+                    combined_content += " " + paragraph if combined_content else paragraph
+                    if len(combined_content.split()) >= 80:
+                        break
+            
+            content = combined_content.strip()
+        
+        # Làm sạch content
+        if content:
+            content = content.replace('...', '').strip()
+        
+        return title, content
+        
+    except Exception as e:
+        print(f"❌ Error parsing HTML: {e}")
+        return None, ""
 
 
 def extract_with_selenium(url):
@@ -64,50 +170,8 @@ def extract_with_selenium(url):
         if not html_content or len(html_content) < 500: # Kiểm tra nội dung có hợp lệ không
              raise ValueError("Page source is too short or empty.")
 
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # (Logic trích xuất tiêu đề và nội dung giữ nguyên)
-        title, content = None, None
-        title_selectors = ['h1.title', 'h1.detail-title', 'h1', '.entry-title', 'title']
-        for selector in title_selectors:
-            if title_element := soup.select_one(selector):
-                if len(title_element.get_text(strip=True)) > 10:
-                    title = title_element.get_text(strip=True)
-                    break
-        
-        # Các logic tìm content có thể thêm vào đây
-        # Ưu tiên meta description
-        if meta_desc := soup.find('meta', attrs={'name': 'description'}):
-            if len(meta_desc.get('content', '')) > 50:
-                content = meta_desc.get('content', '').strip()
-
-        # Nếu không có, tìm trong các thẻ <p>
-        if not content:
-            for p in soup.find_all('p'):
-                text = p.get_text(strip=True)
-                if len(text) > 80 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
-                    content = text
-                    break
-        
-        # Nếu content < 80 từ, lấy thêm đoạn văn kế tiếp (tất cả trang đều áp dụng)
-        if content and len(content.split()) < 80:
-            print(f"Selenium: Content has {len(content.split())} words, adding more paragraphs...")
-            all_paragraphs = soup.find_all('p')
-            for p in all_paragraphs:
-                text = p.get_text(strip=True)
-                if (len(text) > 30 and 
-                    'login' not in text.lower() and 
-                    'đăng nhập' not in text.lower() and
-                    'nguồn:' not in text.lower() and
-                    'ảnh:' not in text.lower() and
-                    'photo:' not in text.lower() and
-                    'image:' not in text.lower() and
-                    text not in content):
-                    content += " " + text
-                    print(f"Selenium: Combined content now has {len(content.split())} words")
-                    if len(content.split()) >= 80:
-                        print("✅ Selenium: Content combined successfully to meet 80-word minimum.")
-                        break
+        # Sử dụng parse_html_content function để trích xuất
+        title, content = parse_html_content(html_content, url)
         
         if title and content:
             print("✅ Selenium extraction successful!")
@@ -177,73 +241,8 @@ def extract_title_and_content(url):
         response = requests.get(url, headers=headers, timeout=15, verify=False)
         response.raise_for_status()
         
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Logic trích xuất tương tự Selenium
-        title, content = None, None
-        
-        # Xử lý đặc biệt cho các trang cụ thể
-        if 'vietnamnet.vn' in url:
-            print("🔍 Applying specific logic for vietnamnet.vn")
-            if sapo := soup.select_one('h2.content-detail-sapo, [class*="sapo"]'):
-                sapo_text = sapo.get_text(strip=True)
-                if len(sapo_text) > 30 and not sapo_text.endswith('...'):
-                    content = sapo_text
-                    print(f"✅ VietnamNet sapo extracted: {len(sapo_text.split())} words")
-        elif 'tienphong.vn' in url:
-            print("🔍 Applying specific logic for tienphong.vn")
-            if sapo := soup.select_one('div.sapo p, .article-sapo'):
-                sapo_text = sapo.get_text(strip=True)
-                if len(sapo_text) > 30:
-                    content = sapo_text
-                    print(f"✅ TienPhong sapo extracted: {len(sapo_text.split())} words")
-        elif 'baotintuc.vn' in url:
-            print("🔍 Applying specific logic for baotintuc.vn")
-            if sapo := soup.select_one('h2.sapo, [class="sapo"]'):
-                sapo_text = sapo.get_text(strip=True)
-                if len(sapo_text) > 50:
-                    content = sapo_text
-                    print(f"✅ BaoTinTuc sapo extracted: {len(sapo_text.split())} words")
-
-        # Logic chung
-        title_selectors = ['h1.title', 'h1.detail-title', 'h1', '.entry-title', 'title']
-        for selector in title_selectors:
-            if title_element := soup.select_one(selector):
-                if len(title_element.get_text(strip=True)) > 10:
-                    title = title_element.get_text(strip=True)
-                    break
-        
-        if not content:
-            if meta_desc := soup.find('meta', attrs={'name': 'description'}):
-                if len(meta_desc.get('content', '')) > 50:
-                    content = meta_desc.get('content', '').strip()
-
-        if not content:
-            for p in soup.find_all('p'):
-                text = p.get_text(strip=True)
-                if len(text) > 80 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
-                    content = text
-                    break
-        
-        # Nếu content < 80 từ, lấy thêm đoạn văn kế tiếp (tất cả trang đều áp dụng)
-        if content and len(content.split()) < 80:
-            print(f"Requests: Content has {len(content.split())} words, adding more paragraphs...")
-            all_paragraphs = soup.find_all('p')
-            for p in all_paragraphs:
-                text = p.get_text(strip=True)
-                if (len(text) > 30 and 
-                    'login' not in text.lower() and 
-                    'đăng nhập' not in text.lower() and
-                    'nguồn:' not in text.lower() and
-                    'ảnh:' not in text.lower() and
-                    'photo:' not in text.lower() and
-                    'image:' not in text.lower() and
-                    text not in content):
-                    content += " " + text
-                    print(f"Requests: Combined content now has {len(content.split())} words")
-                    if len(content.split()) >= 80:
-                        print("✅ Content combined successfully to meet 80-word minimum.")
-                        break
+        # Sử dụng parse_html_content function để trích xuất
+        title, content = parse_html_content(response.content.decode('utf-8'), url)
         
         if title and content:
             print("✅ Requests extraction successful!")
@@ -283,6 +282,68 @@ def build_error_response(message):
     return {'title': 'Lỗi', 'content': message, 'word_count': {'total_words': 0, 'meets_minimum': False}, 'success': False}
 
 
+async def extract_title_and_content_async(session, url):
+    """
+    Async version với hệ thống fallback 3 tầng: aiohttp -> Selenium -> Gemini API
+    """
+    print(f"\n🔍 Starting async extraction for: {url}")
+    
+    # --- PHƯƠNG PHÁP 1: Dùng aiohttp (Nhanh nhất) ---
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        async with session.get(url, ssl=False, timeout=aiohttp.ClientTimeout(total=30), headers=headers) as response:
+            html_content = await response.text()
+            title, content = parse_html_content(html_content, url)
+            
+            if title and content:
+                print("✅ Aiohttp extraction successful!")
+                return build_success_response(title, content)
+
+    except Exception as e:
+        print(f"⚠️ Aiohttp failed: {e}. Trying Selenium.")
+
+    # --- PHƯƠNG PHÁP 2: Dùng Selenium (Fallback) ---
+    selenium_result = extract_with_selenium(url)
+    if selenium_result['success']:
+        return build_success_response(selenium_result['title'], selenium_result['content'])
+
+    # --- PHƯƠNG PHÁP 3: Dùng Gemini (Fallback cuối cùng) ---
+    gemini_result = extract_with_gemini(url)
+    if gemini_result['success']:
+        return build_success_response(gemini_result['title'], gemini_result['content'])
+
+    # Nếu tất cả đều thất bại
+    print("❌ All extraction methods failed.")
+    return build_error_response("Không thể trích xuất nội dung từ URL này sau nhiều lần thử.")
+
+
+async def batch_extract_async(urls):
+    """
+    Async batch processing với song song hoá hoàn toàn
+    """
+    print(f"🚀 Starting async batch extraction for {len(urls)} URLs")
+    
+    async with aiohttp.ClientSession() as session:
+        # Tạo tasks cho tất cả URLs đồng thời
+        tasks = [extract_title_and_content_async(session, url) for url in urls]
+        
+        # Chờ tất cả hoàn thành đồng thời
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Xử lý kết quả và exception
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                error_result = build_error_response(f"Lỗi xử lý: {str(result)}")
+                error_result['url'] = urls[i]
+                processed_results.append(error_result)
+            else:
+                result['url'] = urls[i]
+                processed_results.append(result)
+        
+        return processed_results
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -312,12 +373,10 @@ def batch_extract():
         return jsonify({'results': [], 'error': 'Vui lòng nhập ít nhất một URL.'})
     
     urls = [url.strip() for url in urls_text.splitlines() if url.strip()]
-    results = []
-    for url in urls:
-        full_url = url if url.startswith(('http://', 'https://')) else 'https://' + url
-        result = extract_title_and_content(full_url)
-        result['url'] = full_url
-        results.append(result)
+    full_urls = [url if url.startswith(('http://', 'https://')) else 'https://' + url for url in urls]
+    
+    # Sử dụng async batch processing
+    results = asyncio.run(batch_extract_async(full_urls))
         
     return jsonify({'results': results})
 
