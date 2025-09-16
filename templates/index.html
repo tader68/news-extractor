@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trích xuất Tiêu đề và Nội dung Bài báo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 2px solid #f0f0f0;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #4facfe;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+        }
+        
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+        
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .result h3 {
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        
+        .result p {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .url-display {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 15px;
+            word-break: break-all;
+        }
+        
+        .url-display a {
+            color: #4facfe;
+            text-decoration: none;
+            border-bottom: 1px dotted #4facfe;
+            transition: all 0.3s ease;
+        }
+        
+        .url-display a:hover {
+            color: #00f2fe;
+            border-bottom-color: #00f2fe;
+            text-decoration: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4facfe;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .batch-results {
+            margin-top: 20px;
+        }
+        
+        .batch-item {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: white;
+        }
+        
+        .batch-item.success {
+            border-left: 4px solid #28a745;
+        }
+        
+        .batch-item.error {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .example-urls {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #666;
+        }
+        
+        .word-count-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #4facfe;
+        }
+        
+        .word-count-info h4 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 1.1em;
+        }
+        
+        .word-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        
+        .word-status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .word-status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .word-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .article-number {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .number-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 1.1em;
+            display: inline-block;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .copy-section {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        .btn-copy {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .btn-copy:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-copy:active {
+            transform: translateY(0);
+        }
+        
+        .reset-counter {
+            background: #6c757d;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
+        .reset-counter:hover {
+            background: #5a6268;
+        }
+        
+        .create-doc-btn {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+        
+        .create-doc-btn:hover {
+            background: #218838;
+        }
+        
+        .create-doc-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .save-config-btn {
+            background: #ffc107;
+            color: #212529;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+        
+        .save-config-btn:hover {
+            background: #e0a800;
+        }
+        
+        .check-category-btn {
+            background: #17a2b8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+            font-weight: 600;
+        }
+        
+        .check-category-btn:hover {
+            background: #138496;
+        }
+        
+        .counter-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            display: inline-block;
+        }
+        
+        .counter-info span {
+            color: white;
+            font-size: 1.1em;
+            margin-right: 15px;
+        }
+        
+        .article-count {
+            background: rgba(40, 167, 69, 0.3);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .number-selector {
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .number-selector h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .number-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .number-btn {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            color: #495057;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            min-width: 40px;
+        }
+        
+        .number-btn:hover {
+            background: #e9ecef;
+            border-color: #adb5bd;
+        }
+        
+        .number-btn.selected {
+            background: #4facfe;
+            color: white;
+            border-color: #4facfe;
+        }
+        
+        .newspaper-name {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 10px 0;
+            text-align: center;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .article-category {
+            margin: 15px 0;
+            text-align: center;
+        }
+        
+        .category-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        
+        .category-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .domestic-btn {
+            border-color: #28a745;
+            color: #28a745;
+        }
+        
+        .domestic-btn:hover {
+            background: #28a745;
+            color: white;
+        }
+        
+        .domestic-btn.selected {
+            background: #28a745;
+            color: white;
+        }
+        
+        .international-btn {
+            border-color: #007bff;
+            color: #007bff;
+        }
+        
+        .international-btn:hover {
+            background: #007bff;
+            color: white;
+        }
+        
+        .international-btn.selected {
+            background: #007bff;
+            color: white;
+        }
+        
+        .category-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+        
+        .category-badge.domestic {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .category-badge.international {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📰 Trích xuất Tiêu đề và Nội dung</h1>
+            <p>Nhập URL bài báo để trích xuất tiêu đề và đoạn văn đầu tiên</p>
+            <div class="counter-info">
+                <span>Số thứ tự tiếp theo: <strong id="nextNumber">1</strong></span>
+                <span class="article-count">Bài đã lưu: <strong id="articleCount">0</strong></span>
+                <button class="reset-counter" onclick="resetCounter()">🔄 Reset</button>
+                <button class="save-config-btn" onclick="saveAllConfig()">💾 Save Config</button>
+                <button class="check-category-btn" onclick="checkAllCategories()">🔍 Kiểm tra Category</button>
+                <button class="create-doc-btn" onclick="createDocFile()">📄 Tạo File DOC</button>
+            </div>
+        </div>
+        
+        <div class="content">
+            <!-- Trích xuất đơn lẻ -->
+            <div class="section" style="display: none;">
+                <h2>🔍 Trích xuất một bài báo</h2>
+                <form id="singleForm">
+                    <div class="form-group">
+                        <label for="singleUrl">URL bài báo:</label>
+                        <input type="text" id="singleUrl" name="url" placeholder="https://example.com/article" required>
+                    </div>
+                    <button type="submit" class="btn">Trích xuất</button>
+                </form>
+                
+                <div class="loading" id="singleLoading">
+                    <div class="spinner"></div>
+                    <p>Đang xử lý...</p>
+                </div>
+                
+                <div class="result" id="singleResult"></div>
+            </div>
+            
+            <!-- Trích xuất hàng loạt -->
+            <div class="section">
+                <h2>📋 Trích xuất nhiều bài báo</h2>
+                <form id="batchForm">
+                    <div class="form-group">
+                        <label for="batchUrls">Danh sách URL (mỗi URL một dòng):</label>
+                        <textarea id="batchUrls" name="urls" placeholder="https://example.com/article1&#10;https://example.com/article2&#10;https://example.com/article3" required></textarea>
+                        <div class="example-urls">
+                            Ví dụ:<br>
+                            https://nguoiduatin.vn/bieu-tinh-lon-hon-100000-nguoi-o-anh-au-da-du-doi-voi-canh-sat-204251409155802324.htm<br>
+                            https://vov.vn/the-gioi/thu-tuong-lam-thoi-nepal-cong-bo-uu-tien-trong-nhiem-ky-6-thang-post1229993.vov
+                        </div>
+                    </div>
+                    <button type="submit" class="btn">Trích xuất tất cả</button>
+                </form>
+                
+                <div class="loading" id="batchLoading">
+                    <div class="spinner"></div>
+                    <p>Đang xử lý...</p>
+                </div>
+                
+                <div class="batch-results" id="batchResults"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cập nhật số thứ tự hiện tại khi trang load
+        function updateCounterDisplay() {
+            const nextNumber = localStorage.getItem('articleCounter') || '1';
+            document.getElementById('nextNumber').textContent = nextNumber;
+        }
+        
+        // Reset counter về 1
+        function resetCounter() {
+            localStorage.setItem('articleCounter', '1');
+            
+            // Xóa tất cả selectedNumber và category đã lưu
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.startsWith('selectedNumber-') || key.startsWith('category-')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            // Xóa tất cả bài đã lưu
+            localStorage.removeItem('savedArticles');
+            
+            updateCounterDisplay();
+            updateArticleCount();
+            alert('Đã reset số thứ tự về 1 và xóa tất cả bài đã lưu');
+        }
+        
+        // Mapping tên báo theo domain
+        const FULL_HOST_MAP = {
+            "phapluatxahoi.kinhtedothi.vn": "Chuyên trang Pháp Luật & Xã Hội - Báo Kinh tế & Đô thị",
+            "www.vietnamplus.vn": "Báo VietnamPlus",
+            "baotintuc.vn": "Báo Tin Tức TTXVN",
+            "www.anninhthudo.vn": "Chuyên trang An Ninh Thủ Đô - Báo Công an nhân dân",
+            "chinhphu.vn": "Báo Chính Phủ",
+            "congan.com.vn": "Công An TP.HCM",
+            "baodautu.vn": "Báo Đầu Tư",
+            "thoibaotaichinhvietnam.vn": "Thời báo Tài chính",
+            "phunuvietnam.vn": "Báo Phụ Nữ Việt Nam",
+            "thesaigontimes.vn": "Tạp chí Kinh Tế Sài Gòn",
+            "baoxaydung.com.vn": "Báo Xây Dựng",
+            "www.bienphong.com.vn": "Báo Biên phòng",
+            "baoangiang.com.vn": "Báo An Giang",
+            "daidoanket.vn": "Báo Đại Đoàn Kết",
+            "cand.com.vn": "Báo Công An Nhân Dân",
+            "kinhtedothi.vn": "Báo Kinh tế & Đô thị",
+            "nhandan.vn": "Báo Nhân Dân",
+            "nld.com.vn": "Báo Người Lao Động",
+            "www.qdnd.vn": "Báo Quân Đội Nhân Dân",
+            "www.sggp.org.vn": "Báo Sài Gòn Giải Phóng",
+            "vietnamnet.vn": "Báo VietnamNet",
+            "vov.vn": "Báo Điện tử Tiếng nói Việt Nam",
+            "vtcnews.vn": "Báo VTC News",
+            "plo.vn": "Báo Pháp Luật TP.HCM",
+            "baoquocte.vn": "Báo Thế Giới & Việt Nam",
+            "tienphong.vn": "Báo Tiền Phong",
+            "znews.vn": "Tạp chí Tri thức",
+            "www.saostar.vn": "Tạp chí SaoStar",
+            "baovanhoa.vn": "Báo Văn hóa",
+            "hanoionline.vn": "Đài Phát thanh và truyền hình Hà Nội",
+            "doanhnhansaigon.vn": "Tạp chí Doanh nhân Sài Gòn",
+            "www.nguoiduatin.vn": "Tạp chí Người Đưa Tin",
+            "bnews.vn": "Báo Bnews",
+            "taichinhdoanhnghiep.net.vn": "Tạp chí Tài Chính Doanh Nghiệp",
+            "kienthuc.net.vn": "Báo Tri thức & Cuộc sống"
+        };
+
+        const BASE_MAP = {
+            "vietnamplus.vn": "Báo VietnamPlus",
+            "anninhthudo.vn": "Chuyên trang An Ninh Thủ Đô - Báo Công an nhân dân",
+            "bienphong.com.vn": "Báo Biên phòng",
+            "qdnd.vn": "Báo Quân Đội Nhân Dân",
+            "sggp.org.vn": "Báo Sài Gòn Giải Phóng",
+            "saostar.vn": "Tạp chí SaoStar",
+            "nguoiduatin.vn": "Tạp chí Người Đưa Tin",
+            "baotintuc.vn": "Báo Tin Tức TTXVN",
+            "chinhphu.vn": "Báo Chính Phủ",
+            "congan.com.vn": "Công An TP.HCM",
+            "baodautu.vn": "Báo Đầu Tư",
+            "thoibaotaichinhvietnam.vn": "Thời báo Tài chính",
+            "phunuvietnam.vn": "Báo Phụ Nữ Việt Nam",
+            "thesaigontimes.vn": "Tạp chí Kinh Tế Sài Gòn",
+            "baoxaydung.com.vn": "Báo Xây Dựng",
+            "baoangiang.com.vn": "Báo An Giang",
+            "daidoanket.vn": "Báo Đại Đoàn Kết",
+            "cand.com.vn": "Báo Công An Nhân Dân",
+            "kinhtedothi.vn": "Báo Kinh tế & Đô thị",
+            "nhandan.vn": "Báo Nhân Dân",
+            "nld.com.vn": "Báo Người Lao Động",
+            "vietnamnet.vn": "Báo VietnamNet",
+            "vov.vn": "Báo Điện tử Tiếng nói Việt Nam",
+            "vtcnews.vn": "Báo VTC News",
+            "plo.vn": "Báo Pháp Luật TP.HCM",
+            "baoquocte.vn": "Báo Thế Giới & Việt Nam",
+            "tienphong.vn": "Báo Tiền Phong",
+            "znews.vn": "Tạp chí Tri thức",
+            "baovanhoa.vn": "Báo Văn hóa",
+            "hanoionline.vn": "Đài Phát thanh và truyền hình Hà Nội",
+            "doanhnhansaigon.vn": "Tạp chí Doanh nhân Sài Gòn",
+            "bnews.vn": "Báo Bnews",
+            "taichinhdoanhnghiep.net.vn": "Tạp chí Tài Chính Doanh Nghiệp",
+            "kienthuc.net.vn": "Báo Tri thức & Cuộc sống"
+        };
+
+        // Lấy tên báo từ URL
+        function getNewspaperName(url) {
+            try {
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname;
+                
+                // Thử tìm trong FULL_HOST_MAP trước
+                if (FULL_HOST_MAP[hostname]) {
+                    return FULL_HOST_MAP[hostname];
+                }
+                
+                // Nếu không có, thử tìm trong BASE_MAP
+                const baseDomain = hostname.replace(/^www\./, '');
+                if (BASE_MAP[baseDomain]) {
+                    return BASE_MAP[baseDomain];
+                }
+                
+                // Nếu không tìm thấy, trả về hostname
+                return hostname;
+            } catch (e) {
+                return 'Nguồn không xác định';
+            }
+        }
+
+        // Tạo nút số thứ tự
+        function generateNumberButtons(currentNumber, articleId) {
+            let buttons = '';
+            // Luôn hiển thị từ 1-15
+            const startNumber = 1;
+            const endNumber = 15;
+            
+            for (let i = startNumber; i <= endNumber; i++) {
+                const isSelected = i == currentNumber ? 'selected' : '';
+                buttons += `<button class="number-btn ${isSelected}" onclick="selectNumber(${i}, '${articleId}')">${i}</button>`;
+            }
+            return buttons;
+        }
+        
+        // Áp dụng category tự động dựa trên số thứ tự mặc định
+        function applyAutoCategory(articleId) {
+            // Lấy số thứ tự hiện tại (mặc định là articleId)
+            const savedNumber = localStorage.getItem(`selectedNumber-${articleId}`);
+            const currentNumber = savedNumber ? parseInt(savedNumber) : parseInt(articleId);
+            
+            // Tự động chọn category dựa trên số thứ tự
+            let autoCategory = '';
+            if (currentNumber >= 1 && currentNumber <= 7) {
+                autoCategory = 'domestic';
+                console.log(`Tự động áp dụng "Trong nước" cho bài số ${currentNumber} (ID: ${articleId})`);
+            } else if (currentNumber >= 8 && currentNumber <= 12) {
+                autoCategory = 'international';
+                console.log(`Tự động áp dụng "Quốc tế" cho bài số ${currentNumber} (ID: ${articleId})`);
+            }
+            
+            // Áp dụng category tự động nếu có
+            if (autoCategory) {
+                selectCategory(articleId, autoCategory);
+                
+                // Cập nhật hiển thị nút category
+                const categoryButtons = document.getElementById(`category-${articleId}`);
+                if (categoryButtons) {
+                    const buttons = categoryButtons.querySelectorAll('.category-btn');
+                    buttons.forEach(btn => {
+                        btn.classList.remove('selected');
+                        if ((autoCategory === 'domestic' && btn.classList.contains('domestic-btn')) ||
+                            (autoCategory === 'international' && btn.classList.contains('international-btn'))) {
+                            btn.classList.add('selected');
+                        }
+                    });
+                }
+                
+                // Hiển thị badge category
+                const categoryBadge = document.getElementById(`category-badge-${articleId}`);
+                if (categoryBadge) {
+                    if (autoCategory === 'domestic') {
+                        categoryBadge.textContent = '🇻🇳 Trong nước';
+                        categoryBadge.className = 'category-badge domestic';
+                    } else if (autoCategory === 'international') {
+                        categoryBadge.textContent = '🌍 Quốc tế';
+                        categoryBadge.className = 'category-badge international';
+                    }
+                    categoryBadge.style.display = 'inline-block';
+                }
+            }
+        }
+        
+        // Chọn số thứ tự cho bài cụ thể
+        function selectNumber(number, articleId) {
+            // Cập nhật chỉ nút số của bài này
+            const buttonsContainer = document.getElementById(`buttons-${articleId}`);
+            if (buttonsContainer) {
+                const buttons = buttonsContainer.querySelectorAll('.number-btn');
+                buttons.forEach(btn => {
+                    btn.classList.remove('selected');
+                    if (btn.textContent == number) {
+                        btn.classList.add('selected');
+                    }
+                });
+            }
+            
+            // Cập nhật hiển thị badge số thứ tự của bài này
+            const badge = document.getElementById(`badge-${articleId}`);
+            if (badge) {
+                badge.textContent = `Bài số ${number}`;
+            }
+            
+            // Lưu số được chọn cho bài này
+            localStorage.setItem(`selectedNumber-${articleId}`, number);
+            
+            // Tự động chọn category dựa trên số thứ tự
+            let autoCategory = '';
+            if (number >= 1 && number <= 7) {
+                autoCategory = 'domestic';
+                console.log(`Tự động chọn "Trong nước" cho bài số ${number}`);
+            } else if (number >= 8 && number <= 12) {
+                autoCategory = 'international';
+                console.log(`Tự động chọn "Quốc tế" cho bài số ${number}`);
+            }
+            
+            // Thực hiện chọn category tự động nếu có
+            if (autoCategory) {
+                selectCategory(articleId, autoCategory);
+                
+                // Cập nhật hiển thị nút category
+                const categoryButtons = document.getElementById(`category-${articleId}`);
+                if (categoryButtons) {
+                    const buttons = categoryButtons.querySelectorAll('.category-btn');
+                    buttons.forEach(btn => {
+                        btn.classList.remove('selected');
+                        if ((autoCategory === 'domestic' && btn.classList.contains('domestic-btn')) ||
+                            (autoCategory === 'international' && btn.classList.contains('international-btn'))) {
+                            btn.classList.add('selected');
+                        }
+                    });
+                }
+                
+                // Hiển thị badge category
+                const categoryBadge = document.getElementById(`category-badge-${articleId}`);
+                if (categoryBadge) {
+                    if (autoCategory === 'domestic') {
+                        categoryBadge.textContent = '🇻🇳 Trong nước';
+                        categoryBadge.className = 'category-badge domestic';
+                    } else if (autoCategory === 'international') {
+                        categoryBadge.textContent = '🌍 Quốc tế';
+                        categoryBadge.className = 'category-badge international';
+                    }
+                    categoryBadge.style.display = 'inline-block';
+                }
+            }
+        }
+        
+        // Copy với số được chọn cho bài cụ thể
+        function copyArticleWithSelectedNumber(title, content, newspaperName, articleId) {
+            const selectedNumber = localStorage.getItem(`selectedNumber-${articleId}`) || articleId;
+            const formattedText = `${selectedNumber}. ${title}\n\n${content}\n\n`;
+            
+            navigator.clipboard.writeText(formattedText).then(function() {
+                alert(`Đã copy Bài số ${selectedNumber} vào clipboard!\n\nBạn có thể paste vào Word để tạo file DOC.`);
+            }).catch(function(err) {
+                // Fallback cho trình duyệt không hỗ trợ clipboard API
+                const textArea = document.createElement('textarea');
+                textArea.value = formattedText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert(`Đã copy Bài số ${selectedNumber} vào clipboard!\n\nBạn có thể paste vào Word để tạo file DOC.`);
+            });
+        }
+
+        // Copy nội dung bài báo để tạo DOC (legacy function)
+        function copyArticle(number, title, content, newspaperName = '') {
+            const formattedText = `${number}. ${title}\n\n${content}\n\n`;
+            
+            navigator.clipboard.writeText(formattedText).then(function() {
+                alert(`Đã copy Bài số ${number} vào clipboard!\n\nBạn có thể paste vào Word để tạo file DOC.`);
+            }).catch(function(err) {
+                // Fallback cho trình duyệt không hỗ trợ clipboard API
+                const textArea = document.createElement('textarea');
+                textArea.value = formattedText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert(`Đã copy Bài số ${number} vào clipboard!\n\nBạn có thể paste vào Word để tạo file DOC.`);
+            });
+        }
+        
+        // Cập nhật hiển thị số lượng bài đã lưu
+        function updateArticleCount() {
+            const articles = JSON.parse(localStorage.getItem('savedArticles') || '[]');
+            document.getElementById('articleCount').textContent = articles.length;
+            
+            // Cập nhật thống kê category
+            const domesticCount = articles.filter(article => article.category === 'domestic').length;
+            const internationalCount = articles.filter(article => article.category === 'international').length;
+            const unclassifiedCount = articles.filter(article => article.category === 'unclassified').length;
+            
+            console.log(`Thống kê: Trong nước: ${domesticCount}, Quốc tế: ${internationalCount}, Chưa phân loại: ${unclassifiedCount}`);
+        }
+        
+        // Chọn category cho bài báo
+        function selectCategory(articleId, category) {
+            // Lưu category vào localStorage
+            localStorage.setItem(`category-${articleId}`, category);
+            
+            // Cập nhật category trong savedArticles
+            const articles = JSON.parse(localStorage.getItem('savedArticles') || '[]');
+            const articleIndex = articles.findIndex(article => article.id === articleId);
+            if (articleIndex !== -1) {
+                articles[articleIndex].category = category;
+                localStorage.setItem('savedArticles', JSON.stringify(articles));
+            }
+            
+            // Cập nhật UI
+            const buttons = document.getElementById(`category-${articleId}`);
+            const badge = document.getElementById(`category-badge-${articleId}`);
+            
+            // Reset tất cả buttons
+            buttons.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            
+            // Highlight button được chọn
+            const selectedBtn = buttons.querySelector(`.${category}-btn`);
+            selectedBtn.classList.add('selected');
+            
+            // Hiển thị badge
+            badge.style.display = 'inline-block';
+            badge.className = `category-badge ${category}`;
+            
+            if (category === 'domestic') {
+                badge.textContent = '🇻🇳 Trong nước';
+            } else {
+                badge.textContent = '🌍 Quốc tế';
+            }
+            
+            console.log(`Đã cập nhật category cho bài ${articleId}: ${category}`);
+            
+            // Cập nhật thống kê
+            updateArticleCount();
+        }
+        
+        // Lưu trữ các bài đã trích xuất
+        function saveArticle(articleId, title, content, newspaperName, url) {
+            const category = localStorage.getItem(`category-${articleId}`) || 'unclassified';
+            
+            const article = {
+                id: articleId,
+                title: title,
+                content: content,
+                newspaperName: newspaperName,
+                url: url,
+                category: category,
+                timestamp: new Date().toISOString()
+            };
+            
+            const articles = JSON.parse(localStorage.getItem('savedArticles') || '[]');
+            articles.push(article);
+            localStorage.setItem('savedArticles', JSON.stringify(articles));
+            
+            // Cập nhật hiển thị số lượng bài
+            updateArticleCount();
+        }
+        
+        // Lưu tất cả config (category và số thứ tự)
+        function saveAllConfig() {
+            const articles = JSON.parse(localStorage.getItem('savedArticles') || '[]');
+            let updatedCount = 0;
+            
+            articles.forEach(article => {
+                // Cập nhật category từ localStorage
+                const category = localStorage.getItem(`category-${article.id}`);
+                if (category && category !== article.category) {
+                    article.category = category;
+                    updatedCount++;
+                }
+                
+                // Cập nhật selectedNumber từ localStorage
+                const selectedNumber = localStorage.getItem(`selectedNumber-${article.id}`);
+                if (selectedNumber && selectedNumber !== article.selectedNumber) {
+                    article.selectedNumber = parseInt(selectedNumber);
+                    updatedCount++;
+                }
+            });
+            
+            // Lưu lại vào localStorage
+            localStorage.setItem('savedArticles', JSON.stringify(articles));
+            
+            // Cập nhật hiển thị
+            updateArticleCount();
+            
+            // Hiển thị thống kê
+            const domesticCount = articles.filter(article => article.category === 'domestic').length;
+            const internationalCount = articles.filter(article => article.category === 'international').length;
+            const unclassifiedCount = articles.filter(article => article.category === 'unclassified').length;
+            
+            alert(`✅ Đã lưu config thành công!\n\n📊 Thống kê hiện tại:\n- Tin trong nước: ${domesticCount}\n- Tin quốc tế: ${internationalCount}\n- Chưa phân loại: ${unclassifiedCount}\n\n🔄 Đã cập nhật ${updatedCount} bài báo.`);
+        }
+        
+        // Kiểm tra category của tất cả bài
+        function checkAllCategories() {
+            const articles = JSON.parse(localStorage.getItem('savedArticles') || '[]');
+            
+            if (articles.length === 0) {
+                alert('Chưa có bài nào được trích xuất!');
+                return;
+            }
+            
+            let categoryInfo = `🔍 KIỂM TRA CATEGORY CỦA ${articles.length} BÀI BÁO:\n\n`;
+            
+            articles.forEach((article, index) => {
+                const categoryText = article.category === 'domestic' ? '🇻🇳 Trong nước' : 
+                                   article.category === 'international' ? '🌍 Quốc tế' : '❓ Chưa phân loại';
+                categoryInfo += `${index + 1}. "${article.title.substring(0, 40)}..."\n   → ${categoryText}\n   → Báo: ${article.newspaperName}\n\n`;
+            });
+            
+            // Thống kê
+            const domesticCount = articles.filter(article => article.category === 'domestic').length;
+            const internationalCount = articles.filter(article => article.category === 'international').length;
+            const unclassifiedCount = articles.filter(article => article.category === 'unclassified').length;
+            
+            categoryInfo += `📊 TỔNG KẾT:\n- 🇻🇳 Trong nước: ${domesticCount}\n- 🌍 Quốc tế: ${internationalCount}\n- ❓ Chưa phân loại: ${unclassifiedCount}`;
+            
+            alert(categoryInfo);
+        }
+        
+        // Tạo file DOC từ tất cả bài đã lưu
+        function createDocFile() {
+            // Tự động lưu config trước khi tạo file
+            const articles = JSON.parse(localStorage.getItem('savedArticles') || '[]');
+            
+            if (articles.length === 0) {
+                alert('Chưa có bài nào được trích xuất!');
+                return;
+            }
+            
+            // Cập nhật tất cả config trước khi tạo file
+            articles.forEach(article => {
+                const category = localStorage.getItem(`category-${article.id}`);
+                if (category) {
+                    article.category = category;
+                }
+                
+                const selectedNumber = localStorage.getItem(`selectedNumber-${article.id}`);
+                if (selectedNumber) {
+                    article.selectedNumber = parseInt(selectedNumber);
+                }
+            });
+            
+            // Lưu lại config đã cập nhật
+            localStorage.setItem('savedArticles', JSON.stringify(articles));
+            
+            // Sắp xếp theo số thứ tự đã chọn
+            const sortedArticles = articles.map(article => {
+                const selectedNumber = localStorage.getItem(`selectedNumber-${article.id}`) || article.id;
+                return {
+                    ...article,
+                    selectedNumber: parseInt(selectedNumber)
+                };
+            }).sort((a, b) => a.selectedNumber - b.selectedNumber);
+            
+            // Tạo ngày và thứ cho ngày mai
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const dayNames = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+            const dayName = dayNames[tomorrow.getDay()];
+            
+            const day = String(tomorrow.getDate()).padStart(2, '0');
+            const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+            const year = tomorrow.getFullYear();
+            
+            // Tạo câu mở đầu
+            const openingText = `Điểm báo AI ${day}/${month}/${year}###Kiki AI (Beta)###Chào mừng các bạn đã đến với bản tin hôm nay, ${dayName} ngày ${day}/${month}. Bản tin hôm nay sẽ cập nhật những nội dung đáng chú ý trong nước và quốc tế, và sau đây là những thông tin chi tiết.\n\n`;
+            
+            // Phân chia bài theo category
+            const domesticArticles = sortedArticles.filter(article => article.category === 'domestic');
+            const internationalArticles = sortedArticles.filter(article => article.category === 'international');
+            const unclassifiedArticles = sortedArticles.filter(article => article.category === 'unclassified');
+            
+            // Template dẫn tin
+            const domesticTemplates = [
+                'Mở đầu với tin tức trong nước. Dẫn tin từ',
+                'Dẫn nguồn từ',
+                'Theo thông tin từ',
+                'Theo đưa tin',
+                'Dẫn tin từ'
+            ];
+            
+            const internationalTemplates = [
+                'Dẫn nguồn từ',
+                'Theo thông tin từ',
+                'Theo đưa tin',
+                'Dẫn nguồn từ',
+                'Dẫn tin từ'
+            ];
+            
+            const unclassifiedTemplates = [
+                'Dẫn tin từ',
+                'Dẫn nguồn từ',
+                'Theo thông tin từ',
+                'Theo đưa tin'
+            ];
+            
+            // Tạo nội dung DOC
+            let docContent = openingText;
+            
+            // Tin trong nước - luôn hiển thị phần này
+            if (domesticArticles.length > 0) {
+                domesticArticles.forEach((article, index) => {
+                    const template = domesticTemplates[index % domesticTemplates.length];
+                    docContent += `${article.title}.###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
+                });
+            }
+            
+            // Tin quốc tế - luôn hiển thị phần này với template đặc biệt
+            if (internationalArticles.length > 0) {
+                internationalArticles.forEach((article, index) => {
+                    if (index === 0) {
+                        // Bài đầu tiên của tin quốc tế luôn dùng template đặc biệt
+                        docContent += `${article.title}.###${article.newspaperName}###Tiếp tục tới các tin tức quốc tế. Dẫn tin từ ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
+                    } else {
+                        // Các bài tiếp theo dùng template khác
+                        const template = internationalTemplates[index % internationalTemplates.length];
+                        docContent += `${article.title}.###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
+                    }
+                });
+            }
+            
+            // Tin chưa phân loại - hiển thị ở cuối
+            if (unclassifiedArticles.length > 0) {
+                unclassifiedArticles.forEach((article, index) => {
+                    const template = unclassifiedTemplates[index % unclassifiedTemplates.length];
+                    docContent += `${article.title}.###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
+                });
+            }
+            
+            // Tạo và download file
+            const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Tin_tuc_${day}_${month}_${year}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Debug: Hiển thị chi tiết category của từng bài
+            let debugInfo = `📊 Chi tiết phân loại:\n\n`;
+            sortedArticles.forEach(article => {
+                debugInfo += `• "${article.title.substring(0, 30)}..." → ${article.category}\n`;
+            });
+            
+            alert(`Đã tạo file DOC với ${sortedArticles.length} bài báo!\n\n- Tin trong nước: ${domesticArticles.length}\n- Tin quốc tế: ${internationalArticles.length}\n- Chưa phân loại: ${unclassifiedArticles.length}\n\n${debugInfo}\nFile đã được tải xuống với câu mở đầu cho ngày ${day}/${month}/${year} (${dayName}).`);
+        }
+        
+        // Cập nhật counter khi trang load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Reset counter về 1 mỗi khi reload trang
+            localStorage.setItem('articleCounter', '1');
+            
+            // Xóa tất cả selectedNumber và category đã lưu
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.startsWith('selectedNumber-') || key.startsWith('category-')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            // Xóa tất cả bài đã lưu
+            localStorage.removeItem('savedArticles');
+            
+            updateCounterDisplay();
+            updateArticleCount();
+        });
+        // Xử lý form đơn lẻ
+        document.getElementById('singleForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const url = document.getElementById('singleUrl').value;
+            const loading = document.getElementById('singleLoading');
+            const result = document.getElementById('singleResult');
+            
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            
+            try {
+                const formData = new FormData();
+                formData.append('url', url);
+                
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                result.style.display = 'block';
+                
+                if (data.success) {
+                    result.className = 'result success';
+                    const wordCount = data.word_count;
+                    const wordStatus = wordCount.meets_minimum ? '✅ Đạt yêu cầu' : '⚠️ Chưa đạt yêu cầu';
+                    const wordStatusClass = wordCount.meets_minimum ? 'success' : 'warning';
+                    
+                    // Lấy số thứ tự từ localStorage hoặc tạo mới
+                    let articleNumber = localStorage.getItem('articleCounter') || '1';
+                    localStorage.setItem('articleCounter', (parseInt(articleNumber) + 1).toString());
+                    updateCounterDisplay(); // Cập nhật hiển thị counter
+                    
+                    const newspaperName = getNewspaperName(url);
+                    
+                    // Lưu bài vào localStorage
+                    saveArticle(articleNumber, data.title, data.content, newspaperName, url);
+                    
+                    result.innerHTML = `
+                        <h3>✅ Kết quả trích xuất</h3>
+                        <div class="newspaper-name">📰 ${newspaperName}</div>
+                        <div class="article-number">
+                            <span class="number-badge" id="badge-${articleNumber}">Bài số ${articleNumber}</span>
+                        </div>
+                        <div class="article-category">
+                            <h4>🏷️ Phân loại tin:</h4>
+                            <div class="category-buttons" id="category-${articleNumber}">
+                                <button class="category-btn domestic-btn" onclick="selectCategory('${articleNumber}', 'domestic')">🇻🇳 Trong nước</button>
+                                <button class="category-btn international-btn" onclick="selectCategory('${articleNumber}', 'international')">🌍 Quốc tế</button>
+                            </div>
+                            <span class="category-badge" id="category-badge-${articleNumber}" style="display: none;"></span>
+                        </div>
+                        <div class="number-selector">
+                            <h4>🔢 Chọn số thứ tự:</h4>
+                            <div class="number-buttons" id="buttons-${articleNumber}">
+                                ${generateNumberButtons(parseInt(articleNumber), articleNumber)}
+                            </div>
+                        </div>
+                        <div class="url-display"><strong>URL:</strong> <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></div>
+                        <p><strong>Tiêu đề:</strong> ${data.title}</p>
+                        <p><strong>Nội dung:</strong> ${data.content}</p>
+                        <div class="word-count-info">
+                            <h4>📊 Thống kê từ:</h4>
+                            <p><strong>Tiêu đề:</strong> ${wordCount.title_words} từ</p>
+                            <p><strong>Nội dung:</strong> ${wordCount.content_words} từ</p>
+                            <p><strong>Tổng cộng:</strong> ${wordCount.total_words} từ</p>
+                            <p class="word-status ${wordStatusClass}"><strong>Trạng thái:</strong> ${wordStatus} (${wordCount.total_words}/80 từ)</p>
+                        </div>
+                        <div class="copy-section">
+                            <button class="btn-copy" onclick="copyArticleWithSelectedNumber('${data.title.replace(/'/g, "\\'")}', '${data.content.replace(/'/g, "\\'")}', '${newspaperName}', '${articleNumber}')">📋 Copy để tạo DOC</button>
+                        </div>
+                    `;
+                } else {
+                    result.className = 'result error';
+                    const wordCount = data.word_count || {title_words: 0, content_words: 0, total_words: 0, meets_minimum: false};
+                    result.innerHTML = `
+                        <h3>❌ Lỗi</h3>
+                        <div class="url-display"><strong>URL:</strong> <a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a></div>
+                        <p>${data.content}</p>
+                        <div class="word-count-info">
+                            <h4>📊 Thống kê từ:</h4>
+                            <p><strong>Tổng cộng:</strong> ${wordCount.total_words} từ</p>
+                            <p class="word-status error"><strong>Trạng thái:</strong> ❌ Lỗi</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                result.style.display = 'block';
+                result.className = 'result error';
+                result.innerHTML = `
+                    <h3>❌ Lỗi kết nối</h3>
+                    <p>Không thể kết nối đến server: ${error.message}</p>
+                `;
+            }
+        });
+        
+        // Xử lý form hàng loạt
+        document.getElementById('batchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const urls = document.getElementById('batchUrls').value;
+            const loading = document.getElementById('batchLoading');
+            const results = document.getElementById('batchResults');
+            
+            loading.style.display = 'block';
+            results.innerHTML = '';
+            
+            try {
+                const formData = new FormData();
+                formData.append('urls', urls);
+                
+                const response = await fetch('/batch_extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                
+                if (data.error) {
+                    results.innerHTML = `
+                        <div class="result error">
+                            <h3>❌ Lỗi</h3>
+                            <p>${data.error}</p>
+                        </div>
+                    `;
+                } else {
+                    // Lấy số thứ tự hiện tại
+                    let currentNumber = parseInt(localStorage.getItem('articleCounter') || '1');
+                    
+                    data.results.forEach((item, index) => {
+                        const div = document.createElement('div');
+                        div.className = `batch-item ${item.success ? 'success' : 'error'}`;
+                        
+                        if (item.success) {
+                            const wordCount = item.word_count;
+                            const wordStatus = wordCount.meets_minimum ? '✅ Đạt' : '⚠️ Chưa đạt';
+                            const wordStatusClass = wordCount.meets_minimum ? 'success' : 'warning';
+                            const articleNumber = currentNumber + index;
+                            const newspaperName = getNewspaperName(item.url);
+                            
+                            // Lưu bài vào localStorage
+                            saveArticle(articleNumber, item.title, item.content, newspaperName, item.url);
+                            
+                            div.innerHTML = `
+                                <h4>✅ Bài số ${articleNumber}</h4>
+                                <div class="newspaper-name">📰 ${newspaperName}</div>
+                                <div class="article-category">
+                                    <h4>🏷️ Phân loại tin:</h4>
+                                    <div class="category-buttons" id="category-${articleNumber}">
+                                        <button class="category-btn domestic-btn" onclick="selectCategory('${articleNumber}', 'domestic')">🇻🇳 Trong nước</button>
+                                        <button class="category-btn international-btn" onclick="selectCategory('${articleNumber}', 'international')">🌍 Quốc tế</button>
+                                    </div>
+                                    <span class="category-badge" id="category-badge-${articleNumber}" style="display: none;"></span>
+                                </div>
+                                <div class="number-selector">
+                                    <h4>🔢 Chọn số thứ tự:</h4>
+                                    <div class="number-buttons" id="buttons-${articleNumber}">
+                                        ${generateNumberButtons(parseInt(articleNumber), articleNumber)}
+                                    </div>
+                                </div>
+                                <div class="url-display"><strong>URL:</strong> <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.url}</a></div>
+                                <p><strong>Tiêu đề:</strong> ${item.title}</p>
+                                <p><strong>Nội dung:</strong> ${item.content}</p>
+                                <div class="word-count-info">
+                                    <p><strong>Từ:</strong> ${wordCount.total_words}/80 <span class="word-status ${wordStatusClass}">${wordStatus}</span></p>
+                                </div>
+                                <div class="copy-section">
+                                    <button class="btn-copy" onclick="copyArticleWithSelectedNumber('${item.title.replace(/'/g, "\\'")}', '${item.content.replace(/'/g, "\\'")}', '${newspaperName}', '${articleNumber}')">📋 Copy</button>
+                                </div>
+                            `;
+                            
+                            // Tự động áp dụng category cho số thứ tự mặc định
+                            setTimeout(() => {
+                                applyAutoCategory(articleNumber);
+                            }, 100);
+                        } else {
+                            const wordCount = item.word_count || {total_words: 0};
+                            const articleNumber = currentNumber + index;
+                            
+                            div.innerHTML = `
+                                <h4>❌ Bài số ${articleNumber}</h4>
+                                <div class="url-display"><strong>URL:</strong> <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.url}</a></div>
+                                <p>${item.content}</p>
+                                <div class="word-count-info">
+                                    <p><strong>Từ:</strong> ${wordCount.total_words}/80 <span class="word-status error">❌ Lỗi</span></p>
+                                </div>
+                            `;
+                        }
+                        
+                        results.appendChild(div);
+                    });
+                    
+                    // Cập nhật số thứ tự cho lần tiếp theo
+                    localStorage.setItem('articleCounter', (currentNumber + data.results.length).toString());
+                    updateCounterDisplay(); // Cập nhật hiển thị counter
+                }
+            } catch (error) {
+                loading.style.display = 'none';
+                results.innerHTML = `
+                    <div class="result error">
+                        <h3>❌ Lỗi kết nối</h3>
+                        <p>Không thể kết nối đến server: ${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>
