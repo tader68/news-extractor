@@ -65,6 +65,14 @@ def extract_with_selenium(url):
         chrome_options.add_argument('--disable-logging')
         chrome_options.add_argument('--disable-notifications')
         
+        # Force Selenium for problematic domains
+        force_selenium_domains = ['bnews.vn', 'baotintuc.vn', 'vietnamnet.vn']
+        if any(domain in url for domain in force_selenium_domains):
+            print(f"🔄 Force using Selenium for domain: {url}")
+            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option('useAutomationExtension', False)
+        
         # Tạo driver
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -458,6 +466,12 @@ def extract_title_and_content(url):
     Trích xuất tiêu đề và đoạn văn đầu tiên từ URL bài báo
     """
     try:
+        # Force Selenium for known problematic domains
+        force_selenium_domains = ['bnews.vn', 'baotintuc.vn', 'vietnamnet.vn']
+        if any(domain in url for domain in force_selenium_domains):
+            print(f"🚀 Using Selenium directly for {url}")
+            return extract_with_selenium(url)
+        
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
