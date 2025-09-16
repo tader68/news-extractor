@@ -54,5 +54,5 @@ ENV PORT=5000
 # Expose port
 EXPOSE 5000
 
-# Start command
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 300 app:app"]
+# Start command - bind to 0.0.0.0 and use PORT env variable
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --timeout 300 --keep-alive 120 app:app"]
