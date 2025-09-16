@@ -20,7 +20,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 app = Flask(__name__)
 
 # Cấu hình Gemini API
-GEMINI_API_KEY = "AIzaSyBNU2IteZpqb93aISVU38Z0fN9r_Wc3_qs"
+import os
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyBNU2IteZpqb93aISVU38Z0fN9r_Wc3_qs')
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
@@ -29,37 +30,40 @@ def extract_with_selenium(url):
     Sử dụng Selenium để trích xuất tiêu đề và nội dung từ URL
     """
     try:
-        # Cấu hình Chrome options (optimized for low memory)
+        # Cấu hình Chrome options cho production (Render.com compatible)
         chrome_options = Options()
         chrome_options.add_argument('--headless')  # Chạy ẩn
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--no-sandbox')  # Critical for cloud deployment
+        chrome_options.add_argument('--disable-dev-shm-usage')  # Critical for cloud deployment
         chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-plugins')
-        chrome_options.add_argument('--disable-images')
-        chrome_options.add_argument('--disable-javascript')
-        chrome_options.add_argument('--disable-css')
-        chrome_options.add_argument('--window-size=1280,720')  # Smaller window
-        chrome_options.add_argument('--memory-pressure-off')
-        chrome_options.add_argument('--max_old_space_size=256')
-        chrome_options.add_argument('--disable-background-timer-throttling')
-        chrome_options.add_argument('--disable-renderer-backgrounding')
-        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-        chrome_options.add_argument('--disable-features=TranslateUI')
-        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors')
         chrome_options.add_argument('--ignore-certificate-errors-spki-list')
         chrome_options.add_argument('--disable-web-security')
         chrome_options.add_argument('--allow-running-insecure-content')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-plugins')
+        chrome_options.add_argument('--disable-images')  # Faster loading
+        # chrome_options.add_argument('--disable-javascript')  # Keep JS enabled for some sites
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-features=TranslateUI')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        chrome_options.add_argument('--remote-debugging-port=9222')  # For cloud debugging
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         
-        # Set Chrome binary path for production
-        import os
-        chrome_bin = os.environ.get('CHROME_BIN')
-        if chrome_bin:
-            chrome_options.binary_location = chrome_bin
+        # Cloud-specific optimizations
+        chrome_options.add_argument('--single-process')  # Use single process for cloud
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--disable-sync')
+        chrome_options.add_argument('--metrics-recording-only')
+        chrome_options.add_argument('--no-first-run')
+        chrome_options.add_argument('--safebrowsing-disable-auto-update')
+        chrome_options.add_argument('--disable-logging')
+        chrome_options.add_argument('--disable-notifications')
         
         # Tạo driver
         service = Service(ChromeDriverManager().install())
@@ -239,30 +243,12 @@ def extract_with_selenium(url):
             }
         
     except Exception as e:
-        error_msg = str(e)
-        print(f"Lỗi Selenium: {error_msg}")
-        
-        # Log chi tiết hơn cho debugging
-        if "chrome binary" in error_msg.lower():
-            print("⚠️  Chrome binary không tìm thấy. Cần cài đặt Chrome trên server.")
-        elif "memory" in error_msg.lower() or "killed" in error_msg.lower():
-            print("⚠️  Selenium bị kill do thiếu RAM. Cần optimize memory usage.")
-        elif "timeout" in error_msg.lower():
-            print("⚠️  Selenium timeout. Server có thể quá chậm.")
-        
+        print(f"Lỗi Selenium: {str(e)}")
         return {
             "title": "Lỗi Selenium",
-            "content": f"Selenium không khả dụng: {error_msg}",
+            "content": f"Không thể sử dụng Selenium: {str(e)}",
             "success": False
         }
-    finally:
-        # Đảm bảo driver được đóng để giải phóng memory
-        try:
-            if 'driver' in locals():
-                driver.quit()
-                print("✅ Selenium driver đã được đóng")
-        except Exception as cleanup_error:
-            print(f"⚠️  Lỗi cleanup Selenium: {cleanup_error}")
 
 def extract_with_gemini(url):
     """
@@ -1185,7 +1171,36 @@ def extract_title_and_content(url):
         }
         
     except requests.RequestException as e:
-        error_content = f'Không thể truy cập URL: {str(e)}'
+        error_str = str(e)
+        print(f"⚠️ Requests error: {error_str}")
+        
+        # Nếu gặp SSL error, thử dùng Selenium
+        if 'SSL' in error_str or 'CERTIFICATE' in error_str or 'ssl' in error_str.lower():
+            print("🔄 SSL error detected, trying Selenium fallback...")
+            try:
+                selenium_result = extract_with_selenium(url)
+                if selenium_result['success']:
+                    print("✅ Selenium fallback successful!")
+                    return selenium_result
+                else:
+                    print("❌ Selenium fallback failed, trying Gemini...")
+                    # Nếu Selenium cũng fail, thử Gemini
+                    gemini_result = extract_with_gemini(url)
+                    if gemini_result['success']:
+                        print("✅ Gemini fallback successful!")
+                        return gemini_result
+            except Exception as selenium_error:
+                print(f"❌ Selenium fallback error: {selenium_error}")
+                try:
+                    print("🔄 Trying Gemini as final fallback...")
+                    gemini_result = extract_with_gemini(url)
+                    if gemini_result['success']:
+                        print("✅ Gemini final fallback successful!")
+                        return gemini_result
+                except Exception as gemini_error:
+                    print(f"❌ All fallbacks failed. Gemini error: {gemini_error}")
+        
+        error_content = f'Không thể truy cập URL: {error_str}'
         return {
             'title': 'Lỗi kết nối',
             'content': error_content,
@@ -1266,4 +1281,5 @@ def batch_extract():
 if __name__ == '__main__':
     import os
     port = int(os.environ.get('PORT', 5000))
-    app.run(debug=False, host='0.0.0.0', port=port)
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug, host='0.0.0.0', port=port)
