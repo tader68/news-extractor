@@ -38,3 +38,4 @@ python app.py
 ## 🔑 Environment Variables
 
 - `GEMINI_API_KEY`: API key cho Google Gemini (backup cho SSL errors)
+# news-extractor
