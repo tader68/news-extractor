@@ -61,24 +61,40 @@ def extract_with_selenium(url):
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
         
-        # Fix user data directory conflicts for cloud - use memory mode
-        chrome_options.add_argument('--incognito')  # Use incognito to avoid user data conflicts
-        chrome_options.add_argument('--temp-profile')  # Use temporary profile
-        chrome_options.add_argument('--disable-web-security')  # Disable web security
-        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
-        chrome_options.add_argument('--disable-dev-tools')
-        chrome_options.add_argument('--memory-pressure-off')
-        
-        # Alternative: Use RAM disk for user data
+        # Radical fix: Force unique user data directory with timestamp
         import tempfile
         import uuid
+        import time as time_module
+        import os
+        
+        # Create unique temp directory with timestamp
+        timestamp = str(int(time_module.time() * 1000))  # millisecond timestamp
+        unique_id = uuid.uuid4().hex[:8]
         temp_dir = tempfile.gettempdir()
-        unique_user_data = f"{temp_dir}/chrome_session_{uuid.uuid4().hex[:12]}"
+        unique_user_data = f"{temp_dir}/chrome_data_{timestamp}_{unique_id}"
         
-        # Don't use user-data-dir if it causes conflicts
-        # chrome_options.add_argument(f'--user-data-dir={unique_user_data}')
+        # Force cleanup any existing directories
+        try:
+            import glob
+            old_dirs = glob.glob(f"{temp_dir}/chrome_data_*")
+            for old_dir in old_dirs:
+                try:
+                    import shutil
+                    shutil.rmtree(old_dir, ignore_errors=True)
+                except:
+                    pass
+        except:
+            pass
         
-        print(f"Chrome temp session: {unique_user_data}")
+        # Create the directory
+        os.makedirs(unique_user_data, exist_ok=True)
+        chrome_options.add_argument(f'--user-data-dir={unique_user_data}')
+        
+        # Additional isolation flags
+        chrome_options.add_argument('--disable-dev-tools')
+        chrome_options.add_argument('--disable-web-security')
+        
+        print(f"Chrome unique data dir: {unique_user_data}")
         
         # Tạo driver với proper error handling
         driver = None
@@ -113,7 +129,13 @@ def extract_with_selenium(url):
                     driver.quit()
                 except:
                     pass
-                         # No temp directory cleanup needed
+            # Cleanup temp directory on error
+            try:
+                import shutil
+                if 'unique_user_data' in locals() and os.path.exists(unique_user_data):
+                    shutil.rmtree(unique_user_data, ignore_errors=True)
+            except:
+                pass
             raise driver_error
         finally:
             # Always cleanup driver
@@ -124,7 +146,14 @@ def extract_with_selenium(url):
                 except Exception as close_error:
                     print(f"⚠️ Error closing driver: {close_error}")
             
-                         # No temp directory cleanup needed in incognito mode
+            # Cleanup temp directory
+            try:
+                import shutil
+                if 'unique_user_data' in locals() and os.path.exists(unique_user_data):
+                    shutil.rmtree(unique_user_data, ignore_errors=True)
+                    print(f"✅ Cleaned up temp directory: {unique_user_data}")
+            except Exception as cleanup_error:
+                print(f"⚠️ Cleanup error: {cleanup_error}")
         
         # Parse với BeautifulSoup
         soup = BeautifulSoup(html_content, 'html.parser')
