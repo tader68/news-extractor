@@ -1102,6 +1102,9 @@
             
             // Note: Không cần xử lý riêng unclassified vì đã xử lý tất cả theo số bài ở trên
             
+            // Thêm câu kết thúc
+            docContent += '\n\nVà đó là toàn bộ nội dung của bản tin ngày hôm nay, xin cảm ơn quý vị đã chú ý lắng nghe. Xin chào và hẹn gặp lại.\n';
+            
             // Tạo và download file
             const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
             const url = URL.createObjectURL(blob);
