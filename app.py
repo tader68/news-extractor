@@ -85,9 +85,29 @@ def extract_with_selenium(url):
         if not content:
             for p in soup.find_all('p'):
                 text = p.get_text(strip=True)
-                if len(text) > 100 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
+                if len(text) > 80 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
                     content = text
                     break
+        
+        # Nếu content < 80 từ, lấy thêm đoạn văn kế tiếp (tất cả trang đều áp dụng)
+        if content and len(content.split()) < 80:
+            print(f"Selenium: Content has {len(content.split())} words, adding more paragraphs...")
+            all_paragraphs = soup.find_all('p')
+            for p in all_paragraphs:
+                text = p.get_text(strip=True)
+                if (len(text) > 30 and 
+                    'login' not in text.lower() and 
+                    'đăng nhập' not in text.lower() and
+                    'nguồn:' not in text.lower() and
+                    'ảnh:' not in text.lower() and
+                    'photo:' not in text.lower() and
+                    'image:' not in text.lower() and
+                    text not in content):
+                    content += " " + text
+                    print(f"Selenium: Combined content now has {len(content.split())} words")
+                    if len(content.split()) >= 80:
+                        print("✅ Selenium: Content combined successfully to meet 80-word minimum.")
+                        break
         
         if title and content:
             print("✅ Selenium extraction successful!")
@@ -166,11 +186,24 @@ def extract_title_and_content(url):
         if 'vietnamnet.vn' in url:
             print("🔍 Applying specific logic for vietnamnet.vn")
             if sapo := soup.select_one('h2.content-detail-sapo, [class*="sapo"]'):
-                content = sapo.get_text(strip=True)
+                sapo_text = sapo.get_text(strip=True)
+                if len(sapo_text) > 30 and not sapo_text.endswith('...'):
+                    content = sapo_text
+                    print(f"✅ VietnamNet sapo extracted: {len(sapo_text.split())} words")
         elif 'tienphong.vn' in url:
             print("🔍 Applying specific logic for tienphong.vn")
             if sapo := soup.select_one('div.sapo p, .article-sapo'):
-                 content = sapo.get_text(strip=True)
+                sapo_text = sapo.get_text(strip=True)
+                if len(sapo_text) > 30:
+                    content = sapo_text
+                    print(f"✅ TienPhong sapo extracted: {len(sapo_text.split())} words")
+        elif 'baotintuc.vn' in url:
+            print("🔍 Applying specific logic for baotintuc.vn")
+            if sapo := soup.select_one('h2.sapo, [class="sapo"]'):
+                sapo_text = sapo.get_text(strip=True)
+                if len(sapo_text) > 50:
+                    content = sapo_text
+                    print(f"✅ BaoTinTuc sapo extracted: {len(sapo_text.split())} words")
 
         # Logic chung
         title_selectors = ['h1.title', 'h1.detail-title', 'h1', '.entry-title', 'title']
@@ -188,23 +221,32 @@ def extract_title_and_content(url):
         if not content:
             for p in soup.find_all('p'):
                 text = p.get_text(strip=True)
-                if len(text) > 100 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
+                if len(text) > 80 and 'login' not in text.lower() and 'đăng nhập' not in text.lower():
                     content = text
                     break
         
+        # Nếu content < 80 từ, lấy thêm đoạn văn kế tiếp (tất cả trang đều áp dụng)
+        if content and len(content.split()) < 80:
+            print(f"Requests: Content has {len(content.split())} words, adding more paragraphs...")
+            all_paragraphs = soup.find_all('p')
+            for p in all_paragraphs:
+                text = p.get_text(strip=True)
+                if (len(text) > 30 and 
+                    'login' not in text.lower() and 
+                    'đăng nhập' not in text.lower() and
+                    'nguồn:' not in text.lower() and
+                    'ảnh:' not in text.lower() and
+                    'photo:' not in text.lower() and
+                    'image:' not in text.lower() and
+                    text not in content):
+                    content += " " + text
+                    print(f"Requests: Combined content now has {len(content.split())} words")
+                    if len(content.split()) >= 80:
+                        print("✅ Content combined successfully to meet 80-word minimum.")
+                        break
+        
         if title and content:
             print("✅ Requests extraction successful!")
-            # Logic kết hợp để đủ 80 từ
-            if len(content.split()) < 80:
-                 print(f"Content has {len(content.split())} words, trying to combine...")
-                 for p in soup.find_all('p'):
-                     text = p.get_text(strip=True)
-                     if text not in content and len(text) > 30:
-                         content += " " + text
-                         if len(content.split()) >= 80:
-                             print("✅ Content combined successfully.")
-                             break
-            
             return build_success_response(title, content)
 
     except requests.RequestException as e:
