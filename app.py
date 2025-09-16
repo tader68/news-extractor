@@ -410,20 +410,30 @@ def extract_with_selenium_fast(url):
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1280,720")  # Nhỏ hơn
+    chrome_options.add_argument("--window-size=1280,720")
     chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-images")  # Không load ảnh
-    chrome_options.add_argument("--disable-javascript")  # Không cần JS cho scraping
+    chrome_options.add_argument("--disable-images")
+    chrome_options.add_argument("--disable-javascript")
+    chrome_options.add_argument("--disable-background-networking")
+    chrome_options.add_argument("--disable-sync")
+    chrome_options.add_argument("--disable-translate")
+    chrome_options.add_argument("--hide-scrollbars")
+    chrome_options.add_argument("--metrics-recording-only")
+    chrome_options.add_argument("--mute-audio")
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--safebrowsing-disable-auto-update")
+    chrome_options.add_argument("--ignore-ssl-errors")
+    chrome_options.add_argument("--ignore-certificate-errors")
     
     driver = None
     try:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
-        driver.implicitly_wait(5)  # Giảm từ 15s → 5s
-        driver.set_page_load_timeout(8)  # Timeout load page
+        driver.implicitly_wait(3)  # Giảm thêm
+        driver.set_page_load_timeout(6)  # Giảm timeout
         
         driver.get(url)
-        time.sleep(1)  # Giảm từ 3s → 1s
+        time.sleep(0.5)  # Giảm thêm
         
         html_content = driver.page_source
         if not html_content or len(html_content) < 500:
@@ -431,36 +441,61 @@ def extract_with_selenium_fast(url):
             
         soup = BeautifulSoup(html_content, 'html.parser')
         
-        # Logic trích xuất tương tự (giữ nguyên)
+        # Logic trích xuất đơn giản hóa
         title, content = None, None
+        
+        # Title extraction
         title_selectors = ['h1.title', 'h1.detail-title', 'h1', '.entry-title', 'title']
         for selector in title_selectors:
-            if title_element := soup.select_one(selector):
-                if len(title_element.get_text(strip=True)) > 10:
-                    title = title_element.get_text(strip=True)
-                    break
+            try:
+                title_element = soup.select_one(selector)
+                if title_element:
+                    title_text = title_element.get_text(strip=True)
+                    if len(title_text) > 10:
+                        title = title_text
+                        break
+            except Exception:
+                continue
 
-        if meta_desc := soup.find('meta', attrs={'name': 'description'}):
-            if len(meta_desc.get('content', '')) > 50:
-                content = meta_desc.get('content', '').strip()
+        # Content extraction - simplified
+        try:
+            # Try meta description first
+            meta_desc = soup.find('meta', attrs={'name': 'description'})
+            if meta_desc and meta_desc.get('content'):
+                desc_content = meta_desc.get('content', '').strip()
+                if len(desc_content) > 50:
+                    content = desc_content
 
-        if not content:
-            for p in soup.find_all('p'):
-                text = p.get_text(strip=True)
-                if len(text) > 80 and 'login' not in text.lower():
-                    content = text
-                    break
+            # If no meta desc, try paragraphs
+            if not content:
+                paragraphs = soup.find_all('p')
+                for p in paragraphs:
+                    try:
+                        text = p.get_text(strip=True)
+                        if len(text) > 80 and 'login' not in text.lower():
+                            content = text
+                            break
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"⚠️ Content extraction error: {e}")
 
         if title and content:
+            print(f"✅ Fast Selenium success: {len(title)} chars title, {len(content)} chars content")
             return {"title": title, "content": content, "success": True}
-        return {"title": "Không tìm thấy", "content": "Không tìm thấy", "success": False}
+        
+        print(f"⚠️ Fast Selenium partial result: title={bool(title)}, content={bool(content)}")
+        return {"title": title or "Không tìm thấy tiêu đề", "content": content or "Không tìm thấy nội dung", "success": False}
         
     except Exception as e:
         print(f"❌ Fast Selenium Error: {str(e)}")
-        return {"title": "Lỗi", "content": f"Selenium error: {str(e)}", "success": False}
+        return {"title": "Lỗi Selenium", "content": f"Selenium error: {str(e)}", "success": False}
     finally:
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except Exception:
+                pass  # Ignore quit errors
 
 @app.route('/extract', methods=['POST'])
 def extract():
@@ -496,8 +531,8 @@ def batch_extract():
         print(f"✅ Completed {url} in {processing_time:.2f}s")
         return result
     
-    # Xử lý song song với max 6 threads (tránh overload server)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+    # Xử lý song song với max 3 threads (tránh overload Render server)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         results = list(executor.map(process_url, full_urls))
         
     return jsonify({'results': results})
