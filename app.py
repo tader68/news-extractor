@@ -30,40 +30,28 @@ def extract_with_selenium(url):
     Sử dụng Selenium để trích xuất tiêu đề và nội dung từ URL
     """
     try:
-        # Cấu hình Chrome options cho production (Render.com compatible)
+        # Simplified Chrome options for cloud stability
         chrome_options = Options()
-        chrome_options.add_argument('--headless')  # Chạy ẩn
-        chrome_options.add_argument('--no-sandbox')  # Critical for cloud deployment
-        chrome_options.add_argument('--disable-dev-shm-usage')  # Critical for cloud deployment
+        chrome_options.add_argument('--headless=new')  # Use new headless mode
+        chrome_options.add_argument('--no-sandbox')  # Critical for cloud
+        chrome_options.add_argument('--disable-dev-shm-usage')  # Critical for cloud
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--ignore-certificate-errors')
-        chrome_options.add_argument('--ignore-ssl-errors')
-        chrome_options.add_argument('--ignore-certificate-errors-spki-list')
-        chrome_options.add_argument('--disable-web-security')
-        chrome_options.add_argument('--allow-running-insecure-content')
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-plugins')
-        chrome_options.add_argument('--disable-images')  # Faster loading
-        # chrome_options.add_argument('--disable-javascript')  # Keep JS enabled for some sites
-        chrome_options.add_argument('--disable-background-timer-throttling')
-        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-        chrome_options.add_argument('--disable-renderer-backgrounding')
-        chrome_options.add_argument('--disable-features=TranslateUI')
-        chrome_options.add_argument('--disable-ipc-flooding-protection')
-        chrome_options.add_argument('--remote-debugging-port=9222')  # For cloud debugging
+        chrome_options.add_argument('--disable-images')
+        chrome_options.add_argument('--no-first-run')
+        chrome_options.add_argument('--disable-default-apps')
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         
-        # Cloud-specific optimizations
-        chrome_options.add_argument('--single-process')  # Use single process for cloud
-        chrome_options.add_argument('--disable-background-networking')
-        chrome_options.add_argument('--disable-default-apps')
-        chrome_options.add_argument('--disable-sync')
-        chrome_options.add_argument('--metrics-recording-only')
-        chrome_options.add_argument('--no-first-run')
-        chrome_options.add_argument('--safebrowsing-disable-auto-update')
-        chrome_options.add_argument('--disable-logging')
-        chrome_options.add_argument('--disable-notifications')
+        # Memory optimizations
+        chrome_options.add_argument('--memory-pressure-off')
+        chrome_options.add_argument('--max_old_space_size=4096')
+        
+        # Process isolation for cloud
+        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
+        chrome_options.add_argument('--single-process')
+        chrome_options.add_argument('--disable-background-timer-throttling')
         
         # Force Selenium for problematic domains
         force_selenium_domains = ['bnews.vn', 'baotintuc.vn', 'vietnamnet.vn']
@@ -73,17 +61,24 @@ def extract_with_selenium(url):
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
         
-        # Fix user data directory conflicts for cloud
+        # Fix user data directory conflicts for cloud - use memory mode
+        chrome_options.add_argument('--incognito')  # Use incognito to avoid user data conflicts
+        chrome_options.add_argument('--temp-profile')  # Use temporary profile
+        chrome_options.add_argument('--disable-web-security')  # Disable web security
+        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
+        chrome_options.add_argument('--disable-dev-tools')
+        chrome_options.add_argument('--memory-pressure-off')
+        
+        # Alternative: Use RAM disk for user data
         import tempfile
         import uuid
         temp_dir = tempfile.gettempdir()
-        unique_user_data = f"{temp_dir}/chrome_user_data_{uuid.uuid4().hex[:8]}"
-        chrome_options.add_argument(f'--user-data-dir={unique_user_data}')
-        chrome_options.add_argument('--disable-dev-tools')
-        chrome_options.add_argument('--no-sandbox-and-elevated')
-        chrome_options.add_argument('--memory-pressure-off')
+        unique_user_data = f"{temp_dir}/chrome_session_{uuid.uuid4().hex[:12]}"
         
-        print(f"Chrome user data dir: {unique_user_data}")
+        # Don't use user-data-dir if it causes conflicts
+        # chrome_options.add_argument(f'--user-data-dir={unique_user_data}')
+        
+        print(f"Chrome temp session: {unique_user_data}")
         
         # Tạo driver với proper error handling
         driver = None
@@ -118,13 +113,7 @@ def extract_with_selenium(url):
                     driver.quit()
                 except:
                     pass
-            # Cleanup temp directory
-            try:
-                import shutil
-                if 'unique_user_data' in locals() and os.path.exists(unique_user_data):
-                    shutil.rmtree(unique_user_data, ignore_errors=True)
-            except:
-                pass
+                         # No temp directory cleanup needed
             raise driver_error
         finally:
             # Always cleanup driver
@@ -135,14 +124,7 @@ def extract_with_selenium(url):
                 except Exception as close_error:
                     print(f"⚠️ Error closing driver: {close_error}")
             
-            # Cleanup temp directory
-            try:
-                import shutil
-                if 'unique_user_data' in locals() and os.path.exists(unique_user_data):
-                    shutil.rmtree(unique_user_data, ignore_errors=True)
-                    print(f"✅ Cleaned up temp directory: {unique_user_data}")
-            except Exception as cleanup_error:
-                print(f"⚠️ Cleanup error: {cleanup_error}")
+                         # No temp directory cleanup needed in incognito mode
         
         # Parse với BeautifulSoup
         soup = BeautifulSoup(html_content, 'html.parser')
