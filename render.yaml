@@ -8,4 +8,4 @@ services:
     autoDeploy: false
     envVars:
       - key: PYTHON_VERSION
-        value: 3.9.16
+        value: 3.11.9
