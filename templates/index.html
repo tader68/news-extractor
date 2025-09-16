@@ -1055,62 +1055,52 @@
             const internationalArticles = sortedArticles.filter(article => article.category === 'international');
             const unclassifiedArticles = sortedArticles.filter(article => article.category === 'unclassified');
             
-            // Template dẫn tin
-            const domesticTemplates = [
-                'Mở đầu với tin tức trong nước. Dẫn tin từ',
-                'Dẫn nguồn từ',
-                'Theo thông tin từ',
-                'Theo đưa tin',
-                'Dẫn tin từ'
+            // Template theo thứ tự số bài cụ thể (bài 1-15)
+            const templates = [
+                'Mở đầu với tin tức trong nước. Dẫn tin từ',    // Bài 1
+                'Dẫn nguồn từ',                                 // Bài 2  
+                'Theo thông tin từ',                            // Bài 3
+                'Theo {BAO} đưa tin',                          // Bài 4
+                'Dẫn tin từ',                                   // Bài 5
+                'Dẫn nguồn từ',                                 // Bài 6
+                'Theo thông tin từ',                            // Bài 7
+                'Tiếp tục tới các tin tức quốc tế. Dẫn tin từ', // Bài 8 (bắt đầu tin quốc tế)
+                'Dẫn nguồn từ',                                 // Bài 9
+                'Theo thông tin từ',                            // Bài 10
+                'Theo {BAO} đưa tin',                          // Bài 11
+                'Dẫn nguồn từ',                                 // Bài 12
+                'Dẫn tin từ',                                   // Bài 13
+                'Dẫn nguồn từ',                                 // Bài 14
+                'Theo thông tin từ'                             // Bài 15
             ];
             
-            const internationalTemplates = [
-                'Dẫn nguồn từ',
-                'Theo thông tin từ',
-                'Theo đưa tin',
-                'Dẫn nguồn từ',
-                'Dẫn tin từ'
-            ];
-            
-            const unclassifiedTemplates = [
-                'Dẫn tin từ',
-                'Dẫn nguồn từ',
-                'Theo thông tin từ',
-                'Theo đưa tin'
-            ];
-            
-            // Tạo nội dung DOC
+            // Tạo nội dung DOC theo thứ tự số bài
             let docContent = openingText;
             
-            // Tin trong nước - luôn hiển thị phần này
-            if (domesticArticles.length > 0) {
-                domesticArticles.forEach((article, index) => {
-                    const template = domesticTemplates[index % domesticTemplates.length];
-                    docContent += `${article.title}.###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
-                });
-            }
-            
-            // Tin quốc tế - luôn hiển thị phần này với template đặc biệt
-            if (internationalArticles.length > 0) {
-                internationalArticles.forEach((article, index) => {
-                    if (index === 0) {
-                        // Bài đầu tiên của tin quốc tế luôn dùng template đặc biệt
-                        docContent += `${article.title}.###${article.newspaperName}###Tiếp tục tới các tin tức quốc tế. Dẫn tin từ ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
+            // Sắp xếp tất cả bài theo selectedNumber và xử lý theo template
+            sortedArticles.forEach(article => {
+                const articleNumber = article.selectedNumber;
+                const templateIndex = articleNumber - 1; // Array bắt đầu từ 0
+                
+                if (templateIndex >= 0 && templateIndex < templates.length) {
+                    let template = templates[templateIndex];
+                    
+                    // Replace {BAO} placeholder với tên báo thực  
+                    template = template.replace('{BAO}', article.newspaperName);
+                    
+                    // Bài số 8 có space trước ### để đánh dấu bắt đầu tin quốc tế
+                    if (articleNumber === 8) {
+                        docContent += `${article.title}. ###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
                     } else {
-                        // Các bài tiếp theo dùng template khác
-                        const template = internationalTemplates[index % internationalTemplates.length];
                         docContent += `${article.title}.###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
                     }
-                });
-            }
+                } else {
+                    // Fallback cho số bài > 15
+                    docContent += `${article.title}.###${article.newspaperName}###Dẫn tin từ ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
+                }
+            });
             
-            // Tin chưa phân loại - hiển thị ở cuối
-            if (unclassifiedArticles.length > 0) {
-                unclassifiedArticles.forEach((article, index) => {
-                    const template = unclassifiedTemplates[index % unclassifiedTemplates.length];
-                    docContent += `${article.title}.###${article.newspaperName}###${template} ${article.newspaperName}. ${article.title} * ${article.content}\n\n`;
-                });
-            }
+            // Note: Không cần xử lý riêng unclassified vì đã xử lý tất cả theo số bài ở trên
             
             // Tạo và download file
             const blob = new Blob([docContent], { type: 'text/plain;charset=utf-8' });
