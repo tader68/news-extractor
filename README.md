@@ -21,9 +21,21 @@ python app.py
 
 ## 🌐 Deploy lên Render
 
+### Docker Deployment (Recommended)
 1. Push code lên GitHub
-2. Kết nối với Render.com
-3. Deploy tự động
+2. Tạo Web Service trên [render.com](https://render.com)
+3. Chọn **Docker** environment
+4. Render sẽ tự động build image với Chrome
+
+### Environment Variables
+- `CHROME_BIN`: `/usr/bin/google-chrome`
+- `GEMINI_API_KEY`: Your Gemini API key
+- `DISPLAY`: `:99` (for headless Chrome)
+
+### Memory Optimization
+- Docker image với Chrome optimized cho low memory
+- Single worker để tránh memory overflow
+- Auto cleanup Selenium drivers
 
 ## 📝 Supported News Sites
 

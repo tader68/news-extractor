@@ -1,11 +1,13 @@
 services:
   - type: web
     name: news-extractor
-    env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app"
+    env: docker
     plan: free
     autoDeploy: false
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
+      - key: CHROME_BIN
+        value: /usr/bin/google-chrome
+      - key: DISPLAY
+        value: ":99"
+      - key: GEMINI_API_KEY
+        value: AIzaSyBNU2IteZpqb93aISVU38Z0fN9r_Wc3_qs

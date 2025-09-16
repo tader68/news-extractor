@@ -29,20 +29,37 @@ def extract_with_selenium(url):
     Sử dụng Selenium để trích xuất tiêu đề và nội dung từ URL
     """
     try:
-        # Cấu hình Chrome options
+        # Cấu hình Chrome options (optimized for low memory)
         chrome_options = Options()
         chrome_options.add_argument('--headless')  # Chạy ẩn
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-plugins')
+        chrome_options.add_argument('--disable-images')
+        chrome_options.add_argument('--disable-javascript')
+        chrome_options.add_argument('--disable-css')
+        chrome_options.add_argument('--window-size=1280,720')  # Smaller window
+        chrome_options.add_argument('--memory-pressure-off')
+        chrome_options.add_argument('--max_old_space_size=256')
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-features=TranslateUI')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors')
         chrome_options.add_argument('--ignore-certificate-errors-spki-list')
         chrome_options.add_argument('--disable-web-security')
         chrome_options.add_argument('--allow-running-insecure-content')
-        chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        
+        # Set Chrome binary path for production
+        import os
+        chrome_bin = os.environ.get('CHROME_BIN')
+        if chrome_bin:
+            chrome_options.binary_location = chrome_bin
         
         # Tạo driver
         service = Service(ChromeDriverManager().install())
@@ -222,12 +239,30 @@ def extract_with_selenium(url):
             }
         
     except Exception as e:
-        print(f"Lỗi Selenium: {str(e)}")
+        error_msg = str(e)
+        print(f"Lỗi Selenium: {error_msg}")
+        
+        # Log chi tiết hơn cho debugging
+        if "chrome binary" in error_msg.lower():
+            print("⚠️  Chrome binary không tìm thấy. Cần cài đặt Chrome trên server.")
+        elif "memory" in error_msg.lower() or "killed" in error_msg.lower():
+            print("⚠️  Selenium bị kill do thiếu RAM. Cần optimize memory usage.")
+        elif "timeout" in error_msg.lower():
+            print("⚠️  Selenium timeout. Server có thể quá chậm.")
+        
         return {
             "title": "Lỗi Selenium",
-            "content": f"Không thể sử dụng Selenium: {str(e)}",
+            "content": f"Selenium không khả dụng: {error_msg}",
             "success": False
         }
+    finally:
+        # Đảm bảo driver được đóng để giải phóng memory
+        try:
+            if 'driver' in locals():
+                driver.quit()
+                print("✅ Selenium driver đã được đóng")
+        except Exception as cleanup_error:
+            print(f"⚠️  Lỗi cleanup Selenium: {cleanup_error}")
 
 def extract_with_gemini(url):
     """
