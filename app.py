@@ -73,19 +73,76 @@ def extract_with_selenium(url):
             chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
             chrome_options.add_experimental_option('useAutomationExtension', False)
         
-        # Tạo driver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        # Fix user data directory conflicts for cloud
+        import tempfile
+        import uuid
+        temp_dir = tempfile.gettempdir()
+        unique_user_data = f"{temp_dir}/chrome_user_data_{uuid.uuid4().hex[:8]}"
+        chrome_options.add_argument(f'--user-data-dir={unique_user_data}')
+        chrome_options.add_argument('--disable-dev-tools')
+        chrome_options.add_argument('--no-sandbox-and-elevated')
+        chrome_options.add_argument('--memory-pressure-off')
         
-        print(f"Sử dụng Selenium cho URL: {url}")
-        driver.get(url)
+        print(f"Chrome user data dir: {unique_user_data}")
         
-        # Đợi trang load
-        time.sleep(3)
-        
-        # Lấy HTML content
-        html_content = driver.page_source
-        driver.quit()
+        # Tạo driver với proper error handling
+        driver = None
+        try:
+            # Kill any existing Chrome processes first
+            import subprocess
+            import os
+            try:
+                if os.name != 'nt':  # Not Windows
+                    subprocess.run(['pkill', '-f', 'chrome'], capture_output=True)
+                    subprocess.run(['pkill', '-f', 'chromedriver'], capture_output=True)
+            except:
+                pass
+            
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            
+            print(f"✅ Selenium driver created successfully for: {url}")
+            driver.get(url)
+            
+            # Đợi trang load
+            time.sleep(3)
+            
+            # Lấy HTML content
+            html_content = driver.page_source
+            print(f"✅ Page loaded successfully, content length: {len(html_content)}")
+            
+        except Exception as driver_error:
+            print(f"❌ Selenium driver error: {driver_error}")
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+            # Cleanup temp directory
+            try:
+                import shutil
+                if 'unique_user_data' in locals() and os.path.exists(unique_user_data):
+                    shutil.rmtree(unique_user_data, ignore_errors=True)
+            except:
+                pass
+            raise driver_error
+        finally:
+            # Always cleanup driver
+            if driver:
+                try:
+                    driver.quit()
+                    print("✅ Chrome driver closed successfully")
+                except Exception as close_error:
+                    print(f"⚠️ Error closing driver: {close_error}")
+            
+            # Cleanup temp directory
+            try:
+                import shutil
+                if 'unique_user_data' in locals() and os.path.exists(unique_user_data):
+                    shutil.rmtree(unique_user_data, ignore_errors=True)
+                    print(f"✅ Cleaned up temp directory: {unique_user_data}")
+            except Exception as cleanup_error:
+                print(f"⚠️ Cleanup error: {cleanup_error}")
         
         # Parse với BeautifulSoup
         soup = BeautifulSoup(html_content, 'html.parser')
